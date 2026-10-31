@@ -20,9 +20,23 @@ let
             "KBUILD_DIR=${config.hardware.sc0710.kernel.dev}/lib/modules/${config.hardware.sc0710.kernel.modDirVersion}/build"
         ];
 
+        # fixupPhase's strip would run after signing and invalidate the signature,
+        # so we strip manually in installPhase, before signing.
+        dontStrip = true;
+      
         installPhase = ''
-            mkdir -p $out/lib/modules/${config.hardware.sc0710.kernel.modDirVersion}/kernel/drivers/media/pci/
-            install -D build/sc0710.ko $out/lib/modules/${config.hardware.sc0710.kernel.modDirVersion}/kernel/drivers/media/pci/
+          runHook preInstall
+      
+          dir=$out/lib/modules/${config.hardware.sc0710.kernel.modDirVersion}/kernel/drivers/media/pci
+          mkdir -p $dir
+          install -m644 build/sc0710.ko $dir/sc0710.ko
+      
+          # nixpkgs now expects a signed module plus a sc0710.ko.cer next to it.
+          # Strip first, then sign (signing before stripping leaves it unsigned).
+          strip --strip-debug $dir/sc0710.ko
+          kmodigest $dir/sc0710.ko
+      
+          runHook postInstall
         '';
     };
 in
