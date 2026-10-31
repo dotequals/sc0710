@@ -1,5 +1,6 @@
 { config, pkgs, lib, ... }:
 let
+    kernel = config.hardware.sc0710.kernel;
     minimumKernel = "6.12";
     currentKernelMajorMinor = lib.versions.majorMinor config.hardware.sc0710.kernel.version;
 
@@ -27,15 +28,17 @@ let
         installPhase = ''
           runHook preInstall
       
-          dir=$out/lib/modules/${config.hardware.sc0710.kernel.modDirVersion}/kernel/drivers/media/pci
-          mkdir -p $dir
-          install -m644 build/sc0710.ko $dir/sc0710.ko
-      
-          # nixpkgs now expects a signed module plus a sc0710.ko.cer next to it.
-          # Strip first, then sign (signing before stripping leaves it unsigned).
-          strip --strip-debug $dir/sc0710.ko
-          kmodigest $dir/sc0710.ko
-      
+          make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build \
+          M=$PWD/build \
+          ${lib.escapeShellArgs (kernel.commonMakeFlags or [ ])} \
+          INSTALL_MOD_PATH=$out \
+          modules_install
+
+          rm -f $out/lib/modules/${kernel.modDirVersion}/modules.*
+
+          find $out -name 'sc0710.ko.cer' | grep -q . \
+          || { echo "sc0710.ko.cer was not produced"; exit 1; }
+
           runHook postInstall
         '';
     };
